@@ -1,6 +1,6 @@
 PREFIX = /usr/local
 CC = clang
-CFLAGS = -fpic -o3 -Wall -Werror
+CFLAGS = -g -Wall -Werror
 LDFLAGS = -shared
 
 # Compiler flags for automatic dependency generation
@@ -31,7 +31,7 @@ INC = -I $(INCDIR)
 EXAMPLEDIR = example
 EXAMPLESRCDIR = $(EXAMPLEDIR)/src
 EXAMPLEBUILDDIR = $(EXAMPLEDIR)/build
-EXAMPLETARGET = $(TESTDIR)/run
+EXAMPLETARGET = $(EXAMPLEDIR)/run
 
 # Example sources/objects/dependencies
 EXAMPLESOURCES = $(shell find $(EXAMPLESRCDIR) -type f -name "*.$(SRCEXT)")
@@ -69,7 +69,7 @@ $(LIBDIR)/$(SONAME): $(OBJECTS)
 
 $(BUILDDIR)/%.o: $(SRCDIR)/%.$(SRCEXT)
 	@mkdir -p $(@D)
-	$(CC) $(DEPFLAGS) $(CFLAGS) $(INC) -c -o $@ $<
+	$(CC) $(DEPFLAGS) -fpic $(CFLAGS) $(INC) -c -o $@ $<
 
 # Example Targets
 
@@ -77,7 +77,7 @@ $(BUILDDIR)/%.o: $(SRCDIR)/%.$(SRCEXT)
 
 example: $(LIBDIR)/$(SONAME) $(EXAMPLEOBJECTS)
 	$(CC) $(EXAMPLELDIR) $^ -o $(EXAMPLETARGET) $(EXAMPLELIB)
-	LD_LIBRARY_PATH=$(LIBDIR) $(EXAMPLETARGET)
+	@LD_LIBRARY_PATH=$(LIBDIR) $(EXAMPLETARGET)
 
 $(EXAMPLEBUILDDIR)/%.o: $(EXAMPLESRCDIR)/%.$(SRCEXT)
 	@mkdir -p $(@D)
@@ -89,7 +89,7 @@ $(EXAMPLEBUILDDIR)/%.o: $(EXAMPLESRCDIR)/%.$(SRCEXT)
 
 test: $(LIBDIR)/$(SONAME) $(TESTOBJECTS)
 	$(CC) $(TESTLDIR) $^ -o $(TESTTARGET) $(TESTLIB)
-	LD_LIBRARY_PATH=$(LIBDIR) $(TESTTARGET)
+	@LD_LIBRARY_PATH=$(LIBDIR) $(TESTTARGET)
 
 $(TESTBUILDDIR)/%.o: $(TESTSRCDIR)/%.$(SRCEXT)
 	@mkdir -p $(@D)

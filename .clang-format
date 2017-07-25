@@ -2,5 +2,6 @@
 BasedOnStyle: LLVM
 IndentWidth: 4
 AllowShortFunctionsOnASingleLine: None
+SpaceAfterCStyleCast: true
 ColumnLimit: 80
 ...
