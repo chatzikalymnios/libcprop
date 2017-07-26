@@ -1,7 +1,7 @@
 PREFIX = /usr/local
-CC = clang
+CC = gcc
 AR = ar
-CFLAGS = -g -o0 -Wall -Werror
+CFLAGS = -Wall -Werror
 
 # Compiler flags for automatic dependency generation
 DEPFLAGS = -MT $@ -MMD
