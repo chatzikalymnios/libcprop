@@ -44,7 +44,8 @@ extern char *cprop_get(Properties *prop, char *key);
 /**
  * Creates a new property within the provided Properties structure using copies
  * of the provided key and value or replaces the current value associated with
- * key.
+ * key. In case of an error, the function returns a negative value and the
+ * Properties structure remains unchanged.
  *
  * @param prop pointer to a Properties structure
  * @param key key to store to
