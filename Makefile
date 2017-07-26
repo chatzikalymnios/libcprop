@@ -1,7 +1,7 @@
 PREFIX = /usr/local
 CC = clang
 AR = ar
-CFLAGS = -fpic -g -o0 -Wall -Werror
+CFLAGS = -g -o0 -Wall -Werror
 
 # Compiler flags for automatic dependency generation
 DEPFLAGS = -MT $@ -MMD
@@ -18,90 +18,99 @@ SRCDIR = src
 INCDIR = include
 LIBDIR = lib
 BUILDDIR = build
+SHARED_BUILDDIR = $(BUILDDIR)/shared
+STATIC_BUILDDIR = $(BUILDDIR)/static
 
 # Lib sources/objects/dependencies
 SOURCES = $(shell find $(SRCDIR) -type f -name "*.$(SRCEXT)")
-OBJECTS = $(patsubst $(SRCDIR)/%,$(BUILDDIR)/%,$(SOURCES:.$(SRCEXT)=.o))
-DEPS = $(patsubst $(SRCDIR)/%,$(BUILDDIR)/%,$(SOURCES:.$(SRCEXT)=.d))
+SHARED_OBJECTS = $(patsubst $(SRCDIR)/%,$(SHARED_BUILDDIR)/%,$(SOURCES:.$(SRCEXT)=.o))
+STATIC_OBJECTS = $(patsubst $(SRCDIR)/%,$(STATIC_BUILDDIR)/%,$(SOURCES:.$(SRCEXT)=.o))
+SHARED_DEPS = $(patsubst $(SRCDIR)/%,$(BUILDDIR)/%,$(SOURCES:.$(SRCEXT)=.d))
+STATIC_DEPS = $(patsubst $(SRCDIR)/%,$(BUILDDIR)/%,$(SOURCES:.$(SRCEXT)=.d))
 
-# Lib lib/inc flags
-LIB = 
-INC = -I $(INCDIR)
+# Libraries to link with
+LIBS = 
 
 # Example directories
-EXAMPLEDIR = example
-EXAMPLESRCDIR = $(EXAMPLEDIR)/src
-EXAMPLEBUILDDIR = $(EXAMPLEDIR)/build
-EXAMPLETARGET = $(EXAMPLEDIR)/run
+EXAMPLE_DIR = example
+EXAMPLE_SRCDIR = $(EXAMPLE_DIR)/src
+EXAMPLE_BUILDDIR = $(EXAMPLE_DIR)/build
+EXAMPLE_TARGET = $(EXAMPLE_DIR)/run
 
 # Example sources/objects/dependencies
-EXAMPLESOURCES = $(shell find $(EXAMPLESRCDIR) -type f -name "*.$(SRCEXT)")
-EXAMPLEOBJECTS = $(patsubst $(EXAMPLESRCDIR)/%,$(EXAMPLEBUILDDIR)/%,$(EXAMPLESOURCES:.$(SRCEXT)=.o))
-EXAMPLEDEPS = $(patsubst $(EXAMPLESRCDIR)/%,$(EXAMPLEBUILDDIR)/%,$(EXAMPLESOURCES:.$(SRCEXT)=.d))
+EXAMPLE_SOURCES = $(shell find $(EXAMPLE_SRCDIR) -type f -name "*.$(SRCEXT)")
+EXAMPLE_OBJECTS = $(patsubst $(EXAMPLE_SRCDIR)/%,$(EXAMPLE_BUILDDIR)/%,$(EXAMPLE_SOURCES:.$(SRCEXT)=.o))
+EXAMPLE_DEPS = $(patsubst $(EXAMPLE_SRCDIR)/%,$(EXAMPLE_BUILDDIR)/%,$(EXAMPLE_SOURCES:.$(SRCEXT)=.d))
 
-# Example lib/inc flags
-EXAMPLELIB = -l$(LIBNAME)
-EXAMPLELIB += $(LIB)
-EXAMPLEINC = $(INC)
-EXAMPLELDIR = -L $(LIBDIR)
+# Libarries to link example program with
+EXAMPLE_LIBS = -l$(LIBNAME)
 
 # Test directories
-TESTDIR = tests
-TESTSRCDIR = $(TESTDIR)/src
-TESTBUILDDIR = $(TESTDIR)/build
-TESTTARGET = $(TESTDIR)/run
+TEST_DIR = tests
+TEST_SRCDIR = $(TEST_DIR)/src
+TEST_BUILDDIR = $(TEST_DIR)/build
+TEST_TARGET = $(TEST_DIR)/run
 
 # Test sources/objects/dependencies
-TESTSOURCES = $(shell find $(TESTSRCDIR) -type f -name "*.$(SRCEXT)")
-TESTOBJECTS = $(patsubst $(TESTSRCDIR)/%,$(TESTBUILDDIR)/%,$(TESTSOURCES:.$(SRCEXT)=.o))
-TESTDEPS = $(patsubst $(TESTSRCDIR)/%,$(TESTBUILDDIR)/%,$(TESTSOURCES:.$(SRCEXT)=.d))
+TEST_SOURCES = $(shell find $(TEST_SRCDIR) -type f -name "*.$(SRCEXT)")
+TEST_OBJECTS = $(patsubst $(TEST_SRCDIR)/%,$(TEST_BUILDDIR)/%,$(TEST_SOURCES:.$(SRCEXT)=.o))
+TEST_DEPS = $(patsubst $(TEST_SRCDIR)/%,$(TEST_BUILDDIR)/%,$(TEST_SOURCES:.$(SRCEXT)=.d))
 
 # Test lib/inc flags
-TESTLIB = -lcheck -l$(LIBNAME)
-TESTLIB += $(LIB)
-TESTINC = $(INC)
-TESTINC += -I $(SRCDIR)
-TESTLDIR = -L $(LIBDIR)
+TEST_LIBS = -lcheck -l$(LIBNAME)
 
 # Lib targets
 
 all: $(LIBDIR)/$(SONAME) $(LIBDIR)/$(ANAME)
 
-$(LIBDIR)/$(SONAME): $(OBJECTS)
+$(LIBDIR)/$(SONAME): $(SHARED_OBJECTS)
 	@mkdir -p $(@D)
 	$(CC) -shared $< -o $@ $(LIB)
 
-$(LIBDIR)/$(ANAME): $(OBJECTS)
+$(LIBDIR)/$(ANAME): $(STATIC_OBJECTS)
 	@mkdir -p $(@D)
 	$(AR) rcs $@ $< $(LIB)
 
-$(BUILDDIR)/%.o: $(SRCDIR)/%.$(SRCEXT)
+$(SHARED_BUILDDIR)/%.o: $(SRCDIR)/%.$(SRCEXT)
 	@mkdir -p $(@D)
-	$(CC) $(DEPFLAGS) -fpic $(CFLAGS) $(INC) -c -o $@ $<
+	$(CC) $(DEPFLAGS) -fpic $(CFLAGS) -I$(INCDIR) -c -o $@ $<
+
+$(STATIC_BUILDDIR)/%.o: $(SRCDIR)/%.$(SRCEXT)
+	@mkdir -p $(@D)
+	$(CC) $(DEPFLAGS) $(CFLAGS) -I$(INCDIR) -c -o $@ $<
 
 # Example Targets
 
-.PHONY: example
+# Build and run example program using the static library
+.PHONY: example-static
 
-example: $(LIBDIR)/$(ANAME) $(EXAMPLEOBJECTS)
-	$(CC) -static $(EXAMPLELDIR) $(EXAMPLEOBJECTS) -o $(EXAMPLETARGET) $(EXAMPLELIB)
-	$(EXAMPLETARGET)
+example-static: $(LIBDIR)/$(ANAME) $(EXAMPLE_OBJECTS)
+	$(CC) -static -L$(LIBDIR) $(EXAMPLE_OBJECTS) -o $(EXAMPLE_TARGET) $(EXAMPLE_LIBS)
+	@$(EXAMPLE_TARGET)
 
-$(EXAMPLEBUILDDIR)/%.o: $(EXAMPLESRCDIR)/%.$(SRCEXT)
+# Build and run example program using the shared library
+.PHONY: example-shared
+
+example-shared: $(LIBDIR)/$(SONAME) $(EXAMPLE_OBJECTS)
+	$(CC) -L$(LIBDIR) $(EXAMPLE_OBJECTS) -o $(EXAMPLE_TARGET) $(EXAMPLE_LIBS)
+	@LD_LIBRARY_PATH=$(LIBDIR) $(EXAMPLE_TARGET)
+
+$(EXAMPLE_BUILDDIR)/%.o: $(EXAMPLE_SRCDIR)/%.$(SRCEXT)
 	@mkdir -p $(@D)
-	$(CC) $(DEPFLAGS) $(CFLAGS) $(EXAMPLEINC) -c -o $@ $<
+	$(CC) $(DEPFLAGS) $(CFLAGS) -I$(INCDIR) -c -o $@ $<
 
 # Test Targets
 
+# Build and run unit tests using the static library
 .PHONY: test
 
-test: $(LIBDIR)/$(ANAME) $(TESTOBJECTS)
-	$(CC) -lcheck $(TESTLDIR) $(TESTOBJECTS) -o $(TESTTARGET) $(LIBDIR)/$(ANAME)
-	@$(TESTTARGET)
+test: $(LIBDIR)/$(ANAME) $(TEST_OBJECTS)
+	$(CC) -lcheck -L$(LIBDIR) $(TEST_OBJECTS) -o $(TEST_TARGET) $(LIBDIR)/$(ANAME)
+	@$(TEST_TARGET)
 
-$(TESTBUILDDIR)/%.o: $(TESTSRCDIR)/%.$(SRCEXT)
+$(TEST_BUILDDIR)/%.o: $(TEST_SRCDIR)/%.$(SRCEXT)
 	@mkdir -p $(@D)
-	$(CC) $(DEPFLAGS) $(CFLAGS) $(TESTINC) -c -o $@ $<
+	$(CC) $(DEPFLAGS) $(CFLAGS) -I$(INCDIR) -c -o $@ $<
 
 # Misc Targets
 
@@ -109,8 +118,8 @@ $(TESTBUILDDIR)/%.o: $(TESTSRCDIR)/%.$(SRCEXT)
 
 clean:
 	rm -rf $(BUILDDIR) $(LIBDIR)
-	rm -rf $(EXAMPLEBUILDDIR) $(EXAMPLETARGET)
-	rm -rf $(TESTBUILDDIR) $(TESTTARGET)
+	rm -rf $(EXAMPLE_BUILDDIR) $(EXAMPLE_TARGET)
+	rm -rf $(TEST_BUILDDIR) $(TEST_TARGET)
 	
 .PHONY: install
 
@@ -128,4 +137,7 @@ uninstall:
 
 # Autogenerated Targets
 
--include $(DEPS)
+-include $(SHARED_DEPS)
+-include $(STATIC_DEPS)
+-include $(EXAMPLE_DEPS)
+-include $(TEST_DEPS)
