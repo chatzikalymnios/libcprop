@@ -2,15 +2,13 @@
  * API functions for libcprop.
  *
  * This library loads Java-style <code>.properties</code> files.
- * However, it does not yet support Unicode escape sequences.
+ * However, it does not yet support Uniocde escape sequences.
  *
  * @see https://en.wikipedia.org/wiki/.properties
  */
 
 #ifndef CPROP_H
 #define CPROP_H
-
-#include <stdio.h>
 
 typedef struct _Properties Properties;
 
@@ -35,7 +33,7 @@ extern void cprop_free(Properties *prop);
 
 /**
  * Returns the value associated with <code>key</code> within the provided
- * Properties structure. If the provided key is not found within the Properties,
+ * Properies structure. If the provided key is not found within the Properties,
  * <code>NULL<code> is returned.
  *
  * @param prop pointer to a Properties structure

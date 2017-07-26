@@ -1,7 +1,7 @@
 PREFIX = /usr/local
 CC = clang
-CFLAGS = -g -Wall -Werror
-LDFLAGS = -shared
+AR = ar
+CFLAGS = -fpic -g -o0 -Wall -Werror
 
 # Compiler flags for automatic dependency generation
 DEPFLAGS = -MT $@ -MMD
@@ -11,6 +11,7 @@ SRCEXT = c
 
 LIBNAME = cprop
 SONAME = lib$(LIBNAME).so
+ANAME = lib$(LIBNAME).a
 
 # Lib directories
 SRCDIR = src
@@ -39,7 +40,8 @@ EXAMPLEOBJECTS = $(patsubst $(EXAMPLESRCDIR)/%,$(EXAMPLEBUILDDIR)/%,$(EXAMPLESOU
 EXAMPLEDEPS = $(patsubst $(EXAMPLESRCDIR)/%,$(EXAMPLEBUILDDIR)/%,$(EXAMPLESOURCES:.$(SRCEXT)=.d))
 
 # Example lib/inc flags
-EXAMPLELIB = $(LIB)
+EXAMPLELIB = -l$(LIBNAME)
+EXAMPLELIB += $(LIB)
 EXAMPLEINC = $(INC)
 EXAMPLELDIR = -L $(LIBDIR)
 
@@ -63,9 +65,15 @@ TESTLDIR = -L $(LIBDIR)
 
 # Lib targets
 
+all: $(LIBDIR)/$(SONAME) $(LIBDIR)/$(ANAME)
+
 $(LIBDIR)/$(SONAME): $(OBJECTS)
 	@mkdir -p $(@D)
-	$(CC) $(LDFLAGS) $< -o $@ $(LIB)
+	$(CC) -shared $< -o $@ $(LIB)
+
+$(LIBDIR)/$(ANAME): $(OBJECTS)
+	@mkdir -p $(@D)
+	$(AR) rcs $@ $< $(LIB)
 
 $(BUILDDIR)/%.o: $(SRCDIR)/%.$(SRCEXT)
 	@mkdir -p $(@D)
@@ -75,9 +83,9 @@ $(BUILDDIR)/%.o: $(SRCDIR)/%.$(SRCEXT)
 
 .PHONY: example
 
-example: $(LIBDIR)/$(SONAME) $(EXAMPLEOBJECTS)
-	$(CC) $(EXAMPLELDIR) $^ -o $(EXAMPLETARGET) $(EXAMPLELIB)
-	@LD_LIBRARY_PATH=$(LIBDIR) $(EXAMPLETARGET)
+example: $(LIBDIR)/$(ANAME) $(EXAMPLEOBJECTS)
+	$(CC) -static $(EXAMPLELDIR) $(EXAMPLEOBJECTS) -o $(EXAMPLETARGET) $(EXAMPLELIB)
+	$(EXAMPLETARGET)
 
 $(EXAMPLEBUILDDIR)/%.o: $(EXAMPLESRCDIR)/%.$(SRCEXT)
 	@mkdir -p $(@D)
@@ -87,9 +95,9 @@ $(EXAMPLEBUILDDIR)/%.o: $(EXAMPLESRCDIR)/%.$(SRCEXT)
 
 .PHONY: test
 
-test: $(LIBDIR)/$(SONAME) $(TESTOBJECTS)
-	$(CC) $(TESTLDIR) $^ -o $(TESTTARGET) $(TESTLIB)
-	@LD_LIBRARY_PATH=$(LIBDIR) $(TESTTARGET)
+test: $(LIBDIR)/$(ANAME) $(TESTOBJECTS)
+	$(CC) -lcheck $(TESTLDIR) $(TESTOBJECTS) -o $(TESTTARGET) $(LIBDIR)/$(ANAME)
+	@$(TESTTARGET)
 
 $(TESTBUILDDIR)/%.o: $(TESTSRCDIR)/%.$(SRCEXT)
 	@mkdir -p $(@D)
