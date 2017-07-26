@@ -5,8 +5,13 @@
 
 #include "cprop.h"
 
-#define INITIAL_KEY_LEN 32
-#define INITIAL_VALUE_LEN 64
+static int const INITIAL_STR_LEN = 32;
+
+static char const KEY_DELIM[] = {'=', ':', ' ', '\t', '\f', '\n'};
+static int const KEY_DELIM_COUNT = 6;
+
+static char const VAL_DELIM[] = {'\n'};
+static int const VAL_DELIM_COUNT = 1;
 
 typedef struct _Property {
     char *key;
@@ -34,8 +39,8 @@ static void consume_line(FILE *stream) {
 }
 
 /*
- * Consumes all white-space characters up to the first non-white-space character
- * in the stream. Returnes the number of lines skipped.
+ * Consumes all whitespace characters up to the first non-whitespace character
+ * in the stream or up to the EOF. Returns the number of lines skipped.
  */
 static int skip_whitespace(FILE *stream) {
     int c = 0;
@@ -56,6 +61,21 @@ static int skip_whitespace(FILE *stream) {
 }
 
 /*
+ * Consumes all blank characters (' ', '\t') up to the first non-blank character
+ * in the stream or up to the EOF.
+ */
+static void skip_blanks(FILE *stream) {
+    int c = 0;
+
+    while ((c = fgetc(stream)) != EOF) {
+        if (!isblank(c)) {
+            ungetc(c, stream);
+            break;
+        }
+    }
+}
+
+/*
  * Returns the next character in the stream without consuming it.
  */
 static int fpeek(FILE *stream) {
@@ -65,18 +85,34 @@ static int fpeek(FILE *stream) {
 }
 
 /*
- * Reads a value from a .properties file and stores a pointer to it in the
- * output param value. Returns the number of lines that the value spans. In case
- * of an error, the function returns a negative value.
+ * Checks whether the character c is contained in the provided char array.
+ * If so, the function returns 1. Otherwise the function returns 0.
  */
-static int read_value(FILE *stream, char **value) {
-    int len = INITIAL_VALUE_LEN;
+static int contains(int size, const char *arr, char c) {
+    int i = 0;
+
+    for (i = 0; i < size; i++) {
+        if (arr[i] == c) {
+            return 1;
+        }
+    }
+
+    return 0;
+}
+
+/*
+ * Reads a string from a .properties file and stores a pointer to it in the
+ * output param value. In case of an error, the function returns a negative
+ * value. The string is considered to end when one of the characters in the
+ * provided delim array is encountered unescaped or the EOF is reached.
+ */
+static int read_string(FILE *stream, int delimc, const char *delim, char **str) {
+    int len = INITIAL_STR_LEN;
     int i = 0;
     int c = 0;
-    int lines = 1;
-    *value = (char *) calloc(sizeof(char), len + 1);
+    *str = (char *) calloc(sizeof(char), len + 1);
 
-    lines += skip_whitespace(stream);
+    skip_blanks(stream);
 
     while (1) {
         c = fpeek(stream);
@@ -86,157 +122,112 @@ static int read_value(FILE *stream, char **value) {
             fgetc(stream);
             c = fpeek(stream);
             if (c == '\n') {
-                // Value continues on the next line
-                lines += skip_whitespace(stream);
+                // String continues on the next line
+                fgetc(stream);
+                skip_blanks(stream);
                 continue;
             }
-        } else if ((c == '\n') || (c == EOF)) {
-            // End of value reached
-            return lines;
-        }
-        
-        // Add character to value
-        (*value)[i++] = fgetc(stream);
-
-        // Check if key array is full
-        if (i == len) {
-            // Double key array size
-            int new_len = 2 * len;
-            char *new_value = realloc(*value, sizeof(char) * (new_len + 1));
-            if (!new_value) {
-                free(*value);
-                *value = NULL;
-                return -1;
-            }
-
-            // Zero-fill new part of array
-            memset((new_value + sizeof(char) * (len + 1)), 0,
-                   sizeof(char) * (new_len - len));
-            *value = new_value;
-            len = new_len;
-        }
-    }
-}
-
-/*
- * Reads a key from a .properties file and stores a pointer to it in the output
- * param key. In case of an error, the function returns a negative value;
- */
-static int read_key(FILE *stream, char **key) {
-    int len = INITIAL_KEY_LEN;
-    int i = 0;
-    int c = 0;
-    *key = (char *) calloc(sizeof(char), len + 1);
-
-    while (1) {
-        c = fpeek(stream);
-
-        if (c == '\\') {
-            // Consume backslash
-            // Escaped char will be added below
-            fgetc(stream);
-        } else if ((c == ' ') || (c == '\t') || (c == '\f') || (c == '=') ||
-                   (c == ':') || (c == EOF)) {
-            // End of key reached
+        } else if (contains(delimc, delim, c) || (c == EOF)) {
+            // End of string reached
             return 0;
         }
         
-        // Add character to key
-        (*key)[i++] = fgetc(stream);
+        // Add character to string
+        (*str)[i++] = fgetc(stream);
 
-        // Check if key array is full
+        // Check if array is full
         if (i == len) {
-            // Double key array size
+            // Double array size
             int new_len = 2 * len;
-            char *new_key = realloc(*key, sizeof(char) * (new_len + 1));
-            if (!new_key) {
-                free(*key);
-                *key = NULL;
+            char *new_str = realloc(*str, sizeof(char) * (new_len + 1));
+            if (!new_str) {
+                free(*str);
+                *str = NULL;
                 return -1;
             }
 
             // Zero-fill new part of array
-            memset((new_key + sizeof(char) * (len + 1)), 0,
+            memset((new_str + sizeof(char) * (len + 1)), 0,
                    sizeof(char) * (new_len - len));
-            *key = new_key;
+            *str = new_str;
             len = new_len;
         }
     }
 }
 
 /*
- * Skips over the whitespace characters that are valid between a key and an
- * assignment operator (' ', '\t', '\f') and reads the next char. If that char
- * is an assignment operator, the function returns 0. Otherwise, the function
- * returns a negative value.
+ * Skips over the blank characters and consumes the assignment operator (if it
+ * exists) and skips all remaining blank characters until the start of the next
+ * string, the newline char or EOF.
  */
-static int read_assignment(FILE *stream) {
-    int c = 0;
+static void read_assignment(FILE *stream) {
+    skip_blanks(stream);
+    
+    int c = fgetc(stream);
+    if ((c != '=') && (c != ':')) {
+        ungetc(c, stream);
+    }
 
-    while ((c = fgetc(stream)) != EOF) {
-        if ((c == '=') || (c == ':')) {
-            break;
-        } else if ((c == ' ') || (c == '\t') || (c == '\f')) {
-            continue;
-        }
+    skip_blanks(stream);
+}
 
+/*
+ * Reads a key-value pair from a .properties file and stores it in the provided
+ * Properties structure. In case of an error, the function returns a negative
+ * value.
+ */
+static int read_property(FILE *stream, Properties *prop) {
+    char *key = NULL;
+    char *value = NULL;
+
+    int res = read_string(stream, KEY_DELIM_COUNT, KEY_DELIM, &key);
+    if (res < 0) {
+        return -1;
+    }
+
+    read_assignment(stream);
+
+    res = read_string(stream, VAL_DELIM_COUNT, VAL_DELIM, &value);
+    if (res < 0) {
+        free(key);
+        return -1;
+    }
+
+    res = cprop_set(prop, key, value);
+    free(key);
+    free(value);
+
+    if (res < 0) {
         return -1;
     }
 
     return 0;
 }
 
-static int read_file(char *filename, FILE *stream, Properties *prop) {
+/*
+ * Reads the entire .properties file and stores all properties in the provided
+ * Properties structure. In case of an error, the function returns a negative
+ * value.
+ */
+static int read_file(FILE *stream, Properties *prop) {
     int c = 0;
     int res = 0;
-    int lines = 0;
-    char *key = NULL;
-    char *value = NULL;
 
     while (1) {
-        lines += skip_whitespace(stream);
+        skip_whitespace(stream);
         c = fpeek(stream);
 
-        switch(c) {
-            case EOF:
-                return 0;
-            case '#':
-            case '!':
-                consume_line(stream);
-                lines++;
-                break;
-            default:
-                res = read_key(stream, &key);
-                if (!key) {
-                    return -1;
-                }
+        if (c == EOF) {
+            return 0;
+        } else if (c == '#' || c == '!') {
+            // Comments are ignored
+            consume_line(stream);
+            continue;
+        }
 
-                res = read_assignment(stream);
-                if (res < 0) {
-                    fprintf(
-                        stderr,
-                        "cprop_load(): missing assignment operator (%s:%d)\n",
-                        filename, lines);
-                    free(key);
-                    return -1;
-                }
-
-                res = read_value(stream, &value);
-                if (res < 0) {
-                    return -1;
-                }
-
-                lines += res;
-
-                res = cprop_set(prop, key, value);
-                free(key);
-                free(value);
-
-                if (res < 0) {
-                    return -1;
-                }
-
-                break;
+        res = read_property(stream, prop);
+        if (res < 0) {
+            return -1;
         }
     }
 
@@ -264,27 +255,24 @@ static Properties *cprop_init() {
 }
 
 Properties *cprop_load(char *filename) {
-    FILE *file = fopen(filename, "r");
-    if (!file) {
-        perror("cprop_load()");
+    FILE *stream = fopen(filename, "r");
+    if (!stream) {
         return NULL;
     }
 
     Properties *prop = cprop_init();
     if (!prop) {
-        fclose(file);
-        perror("cprop_load()");
+        fclose(stream);
         return NULL;
     }
 
-    int res = read_file(filename, file, prop);
+    int res = read_file(stream, prop);
     if (res < 0) {
         free(prop);
         prop = NULL;
-        perror("cprop_load()");
     }
 
-    fclose(file);
+    fclose(stream);
     return prop;
 }
 
@@ -387,7 +375,6 @@ int cprop_set(Properties *prop, char *key, char *value) {
         if (res == 0) {
             res = cprop_node_update(curr->next, value);
             if (res < 0) {
-                perror("cprop_set()");
                 return -1;
             }
 
@@ -401,7 +388,6 @@ int cprop_set(Properties *prop, char *key, char *value) {
 
     Node *n = cprop_node_new(key, value, curr->next);
     if (!n) {
-        perror("cprop_set()");
         return -1;
     }
 
