@@ -301,12 +301,14 @@ char *cprop_get(Properties *prop, char *key) {
     }
 
     int res = 0;
-    Node *curr = prop->head;
+
+    // The head node is a sentinel node, so we start searching from head->next
+    Node *curr = prop->head->next;
 
     while (curr) {
         res = strncmp(curr->p.key, key, strlen(curr->p.key));
 
-        if (res < 0) {
+        if (res > 0) {
             return NULL;
         } else if (res == 0) {
             return curr->p.value;
@@ -395,11 +397,39 @@ int cprop_set(Properties *prop, char *key, char *value) {
     return 0;
 }
 
-void cprop_print(Properties *prop) {
+int cprop_delete(Properties *prop, char *key) {
+    if (!prop) {
+        return -1;
+    }
+
+    int res = 0;
+    Node *curr = prop->head;
+
+    while (curr->next) {
+        res = strncmp(curr->next->p.key, key, strlen(curr->next->p.key));
+
+        if (res < 0) {
+            return -1;
+        } else if (res == 0) {
+            Node *n = curr->next->next;
+            free(curr->next->p.key);
+            free(curr->next->p.value);
+            free(curr->next);
+            curr->next = n;
+            return 0;
+        }
+
+        curr = curr->next;
+    }
+
+    return -1;
+}
+
+void cprop_print(FILE *stream, Properties *prop) {
     Node *curr = prop->head->next;
 
     while (curr) {
-        printf("%s = %s\n", curr->p.key, curr->p.value);
+        fprintf(stream, "%s = %s\n", curr->p.key, curr->p.value);
         curr = curr->next;
     }
 }

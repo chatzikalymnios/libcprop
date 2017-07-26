@@ -2,6 +2,7 @@
  * API functions for libcprop.
  *
  * This library loads Java-style <code>.properties</code> files.
+ * However, it does not yet support Unicode escape sequences.
  *
  * @see https://en.wikipedia.org/wiki/.properties
  */
@@ -32,7 +33,7 @@ extern void cprop_free(Properties *prop);
 
 /**
  * Returns the value associated with <code>key</code> within the provided
- * Properies structure. If the provided key is not found within the Properties,
+ * Properties structure. If the provided key is not found within the Properties,
  * <code>NULL<code> is returned.
  *
  * @param prop pointer to a Properties structure
@@ -54,7 +55,26 @@ extern char *cprop_get(Properties *prop, char *key);
  */
 extern int cprop_set(Properties *prop, char *key, char *value);
 
-extern void cprop_print(Properties *prop);
+/**
+ * Deletes the property associated with key from the provided Properties
+ * structure. Returns 0 if the property was found and deleted. If the key was
+ * not found or deletion was not successful, the function returns a negative
+ * value.
+ *
+ * @param prop pointer to a Properties structure
+ * @param key key of property to delete
+ * @return <code>0</code> if found and deleted; <code>-1</code> otherwise
+ */
+extern int cprop_delete(Properties *prop, char *key);
+
+/**
+ * Prints all properties contained in the provide Properties structure to the
+ * provided stream.
+ *
+ * @param stream stream to write to
+ * @param prop pointer to a Properties structure
+ */
+extern void cprop_print(FILE *stream, Properties *prop);
 
 #endif
 
