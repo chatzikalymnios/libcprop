@@ -408,7 +408,7 @@ int cprop_delete(Properties *prop, char *key) {
     while (curr->next) {
         res = strncmp(curr->next->p.key, key, strlen(curr->next->p.key));
 
-        if (res < 0) {
+        if (res > 0) {
             return -1;
         } else if (res == 0) {
             Node *n = curr->next->next;
