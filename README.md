@@ -6,7 +6,9 @@ Currently, the library does not support Unicode escape sequences.
 ## API
 
 The library consists of a few simple functions.
-They are defined and documented in [cprop.h](include/cprop.h).
+They are defined and documented in [include/cprop.h](include/cprop.h).
+An online version of the documentation can be found
+[here](https://chatzikalymnios.github.io/libcprop/cprop_8h.html).
 
 ```C
 /* Loads properties from file */
@@ -32,7 +34,7 @@ void cprop_print(FILE *stream, Properties *prop);
 
 An example program is included in [example/src/main.c](example/src/main.c),
 which showcases how the library should be used.
-The sample [example.properties](example/example.properties) is used for this purpose.
+The sample [example/example.properties](example/example.properties) is used for this purpose.
 Read [instructions](#run-example-program) on how to run the example.
 
 ## Usage
